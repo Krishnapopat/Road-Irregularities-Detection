@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLOv10 Video Stream</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <h1>YOLOv10 Video Stream</h1>
+    <video id="video" width="640" height="480" autoplay></video>
+
+    <script>
+        console.log("Initializing WebRTC connection...");
+        const pc = new RTCPeerConnection();
+
+        async function setupVideo() {
+            try {
+                const video = document.getElementById('video');
+
+                // Constraints to use the rear camera
+                const constraints = {
+                    video: {
+                        facingMode: { exact: "environment" } // Use the rear camera
+                    }
+                };
+
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+
+                stream.getTracks().forEach(track => pc.addTrack(track, stream));
+                console.log("Tracks added to PeerConnection:", stream.getTracks());
+
+                pc.ontrack = event => {
+                    if (video.srcObject !== event.streams[0]) {
+                        video.srcObject = event.streams[0];
+                    }
+                };
+
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                console.log("Created offer:", offer);
+
+                const response = await fetch('/offer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type })
+                });
+
+                const data = await response.json();
+                console.log("Received answer:", data);
+                await pc.setRemoteDescription(new RTCSessionDescription(data));
+            } catch (error) {
+                console.error("Error setting up video:", error);
+            }
+        }
+
+        setupVideo();
+    </script>
+</body>
+</html>
